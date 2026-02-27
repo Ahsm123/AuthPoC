@@ -2,9 +2,12 @@ using System.Text;
 using AuthPoC.Core.Interfaces;
 using AuthPoC.Infrastructure.Data;
 using AuthPoC.Infrastructure.Repositories;
+using AuthPoC.WebApi.Authorization.Handlers;
+using AuthPoC.WebApi.Authorization.Requirements;
 using AuthPoC.WebApi.Data;
 using AuthPoC.WebApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -45,10 +48,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddSingleton<IAuthorizationHandler, EditCommentAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, DeleteCommentAuthorizationHandler>();
+
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("SubscriberPolicy", p => p.RequireRole("Subscriber", "Editor", "Writer"))
     .AddPolicy("EditorPolicy", p  => p.RequireRole("Editor", "Writer"))
-    .AddPolicy("WriterPolicy", p => p.RequireRole("Writer"));
+    .AddPolicy("WriterPolicy", p => p.RequireRole("Writer"))
+    .AddPolicy("EditComment", p => p.AddRequirements(new EditCommentRequirement()))
+    .AddPolicy("DeleteComment", p => p.AddRequirements(new DeleteCommentRequirement()));
 
 
 builder.Services.AddControllers();

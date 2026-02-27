@@ -9,7 +9,9 @@ namespace AuthPoC.WebApi.Controllers;
 
 [ApiController]
 [Route("api/articles/{articleId:int}/comments")]
-public class CommentsController(ICommentRepository comments) : ControllerBase
+public class CommentsController(
+    ICommentRepository comments,
+    IAuthorizationService authorizationService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetByArticle(int articleId)
@@ -42,14 +44,11 @@ public class CommentsController(ICommentRepository comments) : ControllerBase
     [HttpPut("{commentId:int}")]
     public async Task<IActionResult> Update(int articleId, int commentId, [FromBody] UpdateCommentRequest request)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var userRole  = User.FindFirstValue(ClaimTypes.Role);
-        
         var comment = await comments.GetCommentByIdAsync(commentId);
         if (comment is null || comment.ArticleId != articleId) return NotFound();
-
-        if(userRole == "Writer") return Forbid();
-        if(userRole != "Editor" && userId != comment.UserId) return Forbid();
+        
+        var authResult = await authorizationService.AuthorizeAsync(User, comment, "EditComment");
+        if (!authResult.Succeeded) return Forbid();
         
         comment.Content = request.Content;
         await comments.EditCommentAsync(comment);
@@ -61,16 +60,12 @@ public class CommentsController(ICommentRepository comments) : ControllerBase
     [HttpDelete("{commentId:int}")]
     public async Task<IActionResult> Delete(int articleId, int commentId)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var userRole  = User.FindFirstValue(ClaimTypes.Role);
-        
         var comment = await comments.GetCommentByIdAsync(commentId);
         if (comment is null || comment.ArticleId != articleId) return NotFound();
         
-        var authorId = comment.Article.AuthorId;
+        var authResult = await authorizationService.AuthorizeAsync(User, comment, "DeleteComment");
+        if (!authResult.Succeeded) return Forbid();
         
-        if(userId != comment.UserId && authorId != userId && userRole != "Editor") return Forbid();
-
         await comments.DeleteCommentAsync(commentId);
         return NoContent();
     }
